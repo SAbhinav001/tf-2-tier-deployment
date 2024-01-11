@@ -1,25 +1,29 @@
 pipeline {
-    agent {
-        label 'prod'
-    }
-    
+    agent any
     environment {
-        image= "my-todo-app-django:${env.BUILD_NUMBER}"
+        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        AWS_DEFAULT_REGION = "us-east-1"
+        image = "my-todo-app-django"
+
     }
 
     stages {
-        stage('code') {
+        stage('checkou SCM') {
             steps {
-                echo 'code'
-                git branch: 'develop', credentialsId: 'github', url: 'https://github.com/SAbhinav001/todo-app-django.git'
+               script{
+                   checkout scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/SAbhinav001/tf-2-tier-deployment.git']])
+               }
             }
         }
+        
         stage('build') {
             steps {
                 echo 'build'
                 sh 'docker build -t ${image} .'
             }
         }
+        
         stage('push') {
             steps {
                 echo 'push'
@@ -30,18 +34,65 @@ pipeline {
                 }
             }
         }
-        // stage('run') {
-        //     steps {
-        //         echo 'run'
-        //         sh 'docker-compose up -d'
-        //     }
-        // }
-         stage('deploy to k8s') {
+
+
+        stage('Initializing Terraform') {
             steps {
-                withKubeConfig([credentialsId: 'textfile', serverUrl: 'https://172.31.1.216:6443']) {
-                        sh 'kubectl apply -f deploymentService.yml'
-                 }
+                script{
+                    dir('terraform/eks'){
+                        sh 'terraform init'
+                    }
+                }
+            }
+        } 
+        stage('Formatting Terraform Code'){
+            steps{
+                script{
+                    dir('terraform/eks'){
+                        sh 'terraform fmt'
+                    }
+                }
             }
         }
+        stage('Validating Terraform'){
+            steps{
+                script{
+                    dir('terraform/eks'){
+                        sh 'terraform validate'
+                    }
+                }
+            }
+        }
+        stage('Previewing the Infra'){
+            steps{
+                script{
+                    dir('terraform/eks'){
+                        sh 'terraform plan'
+                    }
+                }
+            }
+        }
+        stage('Create/Destroy an EKS Cluster'){
+            steps{
+                script{
+                    dir('terraform/eks') {
+                        sh 'terraform $action --auto-approve'
+                    }
+                }
+            }
+        }
+        
+        stage('Deploying Nginx Application') {
+            steps{
+                script{
+                    dir('k8s') {
+                        sh 'aws eks update-kubeconfig --name my-eks-cluster'
+                        sh 'kubectl apply -f deploymentService.yaml'
+                    }
+                }
+            }
+        }
+        
     }
+    
 }
