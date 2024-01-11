@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: todo-pod
+  namespace: todo-app
+  labels:
+    app: todo-app
+spec:
+  containers:
+    - name: todo-container
+      image: abhinav0101/my-todo-app-django
+      ports:
+        - containerPort: 8000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-service
+  namespace: todo-app
+spec:
+  type: NodePort
+  ports:
+    - port: 3000
+      targetPort: 8000
+      nodePort: 30006
+  selector:
+    app: todo-app
