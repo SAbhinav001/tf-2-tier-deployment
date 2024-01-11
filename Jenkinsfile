@@ -82,7 +82,7 @@ pipeline {
             }
         }
         
-        stage('Deploying Nginx Application') {
+        stage('Deploying Application') {
             steps{
                 script{
                     dir('k8s') {
